@@ -23,7 +23,7 @@ import java.io.IOException;
 @Slf4j
 public class DirectionsController {
 
-    private static final String API_KEY = "AIzaSyAu6taXwDtoaItJkxB2DeDDR9rSKJF2My4";
+    private static final String API_KEY = "AIzaSyAu6taXwDtoaIt*********";
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
