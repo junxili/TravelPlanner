@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DirectionsController {
 
-    private static final String API_KEY = "AIzaSyBKxQf4qFTT0kwKaxCRonZQ0kFEl33itSI";
+    private static final String API_KEY = "";
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
