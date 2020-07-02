@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DirectionsController {
 
-    private static final String API_KEY = "";
+    private static final String API_KEY = "AIzaSyBKxQf4qFTT0kwKaxCRonZQ0kFEl33itSI";
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -50,19 +50,20 @@ public class DirectionsController {
         return "nothing";
     }
 
+    @ResponseBody
     @RequestMapping(value = "/directions", method = RequestMethod.GET, produces = "application/json")
-    public String getDirections(@RequestParam @NonNull final String wayPointString) {
-        final List<String> wayPoints = Lists.newArrayList(wayPointString.split(","));
-
-        if (wayPoints.size() < 2) {
+    public String getDirections(@RequestParam @NonNull final String wayPoints) {
+        List<String> stops = Lists.newArrayList(wayPoints.split(","));
+        if (stops.size() < 2) {
             throw new IllegalArgumentException();
         }
 
-        final String origin = wayPoints.get(0);
-        final String destination = wayPoints.get(wayPoints.size()-1);
+        final String origin = stops.get(0);
+        final String destination = stops.get(stops.size()-1);
+        stops = stops.subList(1, stops.size()-1);
 
         final DirectionsApiRequest request = new DirectionsApiRequest(geoContext);
-        final List<DirectionsApiRequest.Waypoint> wayPointList = wayPoints
+        final List<DirectionsApiRequest.Waypoint> wayPointList = stops
                 .stream()
                 .map(DirectionsApiRequest.Waypoint::new)
                 .collect(Collectors.toList());
@@ -73,7 +74,6 @@ public class DirectionsController {
                     .destination(destination)
                     .waypoints(wayPointList.toArray(new DirectionsApiRequest.Waypoint[0]))
                     .await();
-            logger.info("{}", result);
             return gson.toJson(result);
         } catch(final InterruptedException | IOException | ApiException e) {
             logger.error("In getDirections" + e.getMessage());
