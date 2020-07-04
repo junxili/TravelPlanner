@@ -21,7 +21,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,20 +29,18 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DirectionsController {
 
-    private static final String API_KEY = "";
+    private static final String API_KEY = "AIzaSyCeDlUN-ORh6RWA3Aw5kwcsOl_aNA7JcOU";
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
-
-    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     private final GeoApiContext geoContext = new GeoApiContext.Builder()
             .apiKey(API_KEY)
             .build();
 
-    private final List<String> modes = Lists.newArrayList("BICYCLING", "DRIVING", "TRANSIT", "UNKNOWN", "WALKING");
+    private final List<String> modes = Lists.newArrayList("BICYCLING", "DRIVING", "TRANSIT", "WALKING");
 
-    @RequestMapping(value = "/direction", method = RequestMethod.GET, produces = "application/json")
-    public ResponseEntity<String> getDirection(@RequestParam @NonNull final String origin,
+    @RequestMapping(value = "/direction", method = RequestMethod.GET)
+    public ResponseEntity<DirectionsResult> getDirection(@RequestParam @NonNull final String origin,
                                        @RequestParam @NonNull final String destination,
                                        @RequestParam(required = false, defaultValue = "DRIVING") final String mode) {
 
@@ -54,16 +51,15 @@ public class DirectionsController {
         DirectionsResult result = new DirectionsResult();
         try {
             result = DirectionsApi.getDirections(geoContext, origin, destination).mode(TravelMode.valueOf(mode)).await();
-            return ResponseEntity.ok(gson.toJson(result));
-        } catch (final InterruptedException | IOException | ApiException e) {
+        } catch (final ApiException | IOException | InterruptedException e) {
             logger.error("In getDirection" + e.getMessage());
         }
 
-        return ResponseEntity.ok(gson.toJson(result));
+        return ResponseEntity.ok(result);
     }
 
-    @RequestMapping(value = "/directions", method = RequestMethod.GET, produces = "application/json")
-    public ResponseEntity<String> getDirections(@RequestParam @NonNull final String[] wayPoints,
+    @RequestMapping(value = "/directions", method = RequestMethod.GET)
+    public ResponseEntity<DirectionsResult> getDirections(@RequestParam @NonNull final String[] wayPoints,
                                 @RequestParam(required = false, defaultValue = "DRIVING") final String mode) {
 
         List<String> stops = Lists.newArrayList(wayPoints);
@@ -89,18 +85,18 @@ public class DirectionsController {
                     .mode(TravelMode.valueOf(mode))
                     .waypoints(wayPointList.toArray(new DirectionsApiRequest.Waypoint[0]))
                     .await();
-        } catch(final InterruptedException | IOException | ApiException e) {
+        } catch(final ApiException | IOException | InterruptedException e) {
             logger.error("In getDirections" + e.getMessage());
         }
-        return ResponseEntity.ok(gson.toJson(result));
+        return ResponseEntity.ok(result);
     }
 
-    @RequestMapping(value = "/matrix", method = RequestMethod.GET, produces = "application/json")
-    public ResponseEntity<String> getDirectionMatrix(@RequestParam @NonNull final String[] origins,
+    @RequestMapping(value = "/matrix", method = RequestMethod.GET)
+    public ResponseEntity<DistanceMatrix> getDirectionMatrixSingleMode(@RequestParam @NonNull final String[] origins,
                                      @RequestParam @NonNull final String[] destinations,
                                      @RequestParam(required = false, defaultValue = "DRIVING") final String mode) {
 
-        if (origins.length == 0 || destinations.length == 0 || (mode != null && !modes.contains(mode))) {
+        if (origins.length == 0 || destinations.length == 0 || !modes.contains(mode)) {
             throw new IllegalArgumentException();
         }
 
@@ -113,10 +109,42 @@ public class DirectionsController {
         try{
             result = request.await();
 
-        } catch(final InterruptedException | IOException | ApiException e) {
-            logger.error("In getDirectionMatrix" + e.getMessage());
+        } catch(final ApiException | IOException | InterruptedException e) {
+            logger.error("In getDirectionMatrixSingleMode" + e.getMessage());
         }
-        return ResponseEntity.ok(gson.toJson(result));
+        return ResponseEntity.ok(result);
+    }
+
+    @RequestMapping(value = "/matrices", method = RequestMethod.GET)
+    public ResponseEntity<List<DistanceMatrix>> getDirectionMatrixAllModes(@RequestParam @NonNull final String[] origins,
+                                                                       @RequestParam @NonNull final String[] destinations) {
+
+        if (origins.length == 0 || destinations.length == 0) {
+            throw new IllegalArgumentException();
+        }
+
+        final List<DistanceMatrixApiRequest> requests = modes.stream()
+                .map(mode -> DistanceMatrixApi
+                .getDistanceMatrix(geoContext, origins, destinations)
+                .mode(TravelMode.valueOf(mode)))
+                .collect(Collectors.toList());
+
+
+        final List<DistanceMatrix> results = requests
+                .stream()
+                .map(request -> {
+                    DistanceMatrix result = null;
+                    try {
+                        result = request.await();
+
+                    } catch (final ApiException | IOException | InterruptedException e) {
+                        logger.error("In getDirectionMatrixAllModes" + e.getMessage());
+                    }
+                    return result;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(results);
     }
 
 }
