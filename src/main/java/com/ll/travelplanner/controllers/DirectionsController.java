@@ -156,8 +156,56 @@ public class DirectionsController {
         return ResponseEntity.ok(results);
     }
 
-    @RequestMapping(value = "/recommend", method = RequestMethod.GET)
-    public ResponseEntity<Set<Edge>> getRecommendation(@RequestParam @NonNull final String[] input) {
+//    @RequestMapping(value = "/recommendDummy", method = RequestMethod.GET)
+//    public ResponseEntity<Set<Edge>> getRecommendation(@RequestParam @NonNull final String[] input) {
+//        if (input.length < 2) {
+//            throw new IllegalArgumentException();
+//        }
+//
+//        final Set<String> locations = Sets.newHashSet(input);
+//        final List<DistanceMatrixApiRequest> apiRequests = locations.stream()
+//                .map(location -> generateMatrixRequest(location,
+//                        ImmutableList.copyOf(SetUtils.difference(locations, ImmutableSet.of(location)).toSet())))
+//                .collect(Collectors.toList());
+//        final List<DistanceMatrix> distanceMatrices = apiRequests.stream()
+//                .map(this::getMatrixWrapper)
+//                .collect(Collectors.toList());
+//        final Queue<Edge> edgesSortedByDistance = new PriorityQueue<>(Comparator.comparingLong(Edge::getDistance));
+//        final Map<Node, List<Edge>> graph = new HashMap<>();
+//
+//        for (DistanceMatrix distanceMatrix : distanceMatrices) {
+//            for (int i = 0; i < distanceMatrix.originAddresses.length; i++) {
+//                for (int j = 0; j < distanceMatrix.destinationAddresses.length; j++) {
+//                    final String origin = distanceMatrix.originAddresses[i];
+//                    final String destination = distanceMatrix.destinationAddresses[j];
+//                    final DistanceMatrixElement distanceMatrixElement = distanceMatrix.rows[i].elements[j];
+//
+//                    final Node originNode = Node.builder()
+//                            .location(origin)
+//                            .build();
+//                    final Node destinationNode = Node.builder()
+//                            .location(destination)
+//                            .build();
+//                    final Edge edge = Edge.builder()
+//                            .origin(originNode)
+//                            .destination(destinationNode)
+//                            .distance(distanceMatrixElement.distance.inMeters)
+//                            .duration(distanceMatrixElement.duration.inSeconds)
+//                            .build();
+//
+//                    edgesSortedByDistance.add(edge);
+//                    final List<Edge> edges = graph.getOrDefault(originNode, new ArrayList<>());
+//                    edges.add(edge);
+//                    graph.putIfAbsent(originNode, edges);
+//                }
+//            }
+//        }
+//
+//        return ResponseEntity.ok(KruskalUtils.getOptimalRoutes(edgesSortedByDistance, graph));
+//    }
+
+    @RequestMapping(value="/recommend", method = RequestMethod.GET)
+    public ResponseEntity<?> getRecommendation(@RequestParam @NonNull final String[] input) {
         if (input.length < 2) {
             throw new IllegalArgumentException();
         }
@@ -170,10 +218,9 @@ public class DirectionsController {
         final List<DistanceMatrix> distanceMatrices = apiRequests.stream()
                 .map(this::getMatrixWrapper)
                 .collect(Collectors.toList());
-        final Queue<Edge> edgesSortedByDistance = new PriorityQueue<>(Comparator.comparingLong(Edge::getDistance));
-        final Map<Node, List<Edge>> graph = new HashMap<>();
 
-        for (DistanceMatrix distanceMatrix : distanceMatrices) {
+        final Map<Node, List<Edge>> graph = new HashMap<>();
+        for (final DistanceMatrix distanceMatrix : distanceMatrices) {
             for (int i = 0; i < distanceMatrix.originAddresses.length; i++) {
                 for (int j = 0; j < distanceMatrix.destinationAddresses.length; j++) {
                     final String origin = distanceMatrix.originAddresses[i];
@@ -193,7 +240,6 @@ public class DirectionsController {
                             .duration(distanceMatrixElement.duration.inSeconds)
                             .build();
 
-                    edgesSortedByDistance.add(edge);
                     final List<Edge> edges = graph.getOrDefault(originNode, new ArrayList<>());
                     edges.add(edge);
                     graph.putIfAbsent(originNode, edges);
@@ -201,7 +247,7 @@ public class DirectionsController {
             }
         }
 
-        return ResponseEntity.ok(KruskalUtils.getOptimalRoutes(edgesSortedByDistance, graph));
+        return null;
     }
 
     private DistanceMatrixApiRequest generateMatrixRequest(@NonNull final String origin,
