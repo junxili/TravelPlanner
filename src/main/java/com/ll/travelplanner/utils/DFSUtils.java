@@ -1,19 +1,20 @@
 package com.ll.travelplanner.utils;
 
-        import com.ll.travelplanner.models.Edge;
-        import com.ll.travelplanner.models.Node;
-        import lombok.NonNull;
+import com.ll.travelplanner.models.Edge;
+import com.ll.travelplanner.models.Node;
+import lombok.NonNull;
 
-        import java.util.ArrayList;
-        import java.util.List;
-        import java.util.Map;
-        import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @author llu
  */
 
-public class BFSUtils {
+public class DFSUtils {
 //    public List<Edge> bfs(@NonNull final Node origin, @NonNull final Map<Node, List<Edge>> graph) {
 //        final Queue<Node> frontier = new LinkedList<>();
 //        final Set<Node> visitedNodes = new HashSet<>();
@@ -32,20 +33,27 @@ public class BFSUtils {
 //        }
 //    }
 
-    public void dfs(@NonNull final Node origin,
-                    @NonNull final Map<Node, List<Edge>> graph,
-                    @NonNull final Set<Node> visitedNodes,
-                    @NonNull final Set<Edge> visitedEdges,
-                    @NonNull final List<Edge> path,
-                    @NonNull final List<List<Edge>> paths) {
+    public static void dfs(@NonNull final Node origin,
+                           @NonNull final Map<Node, List<Edge>> graph,
+                           @NonNull final Set<Node> visitedNodes,
+                           @NonNull final Set<Edge> visitedEdges,
+                           @NonNull final List<Edge> path,
+                           @NonNull final List<List<Edge>> paths) {
+        visitedNodes.add(origin);
         if (visitedNodes.size() == graph.size()) {
             paths.add(new ArrayList<>(path));
+            visitedNodes.remove(origin);
             return;
         }
 
-        visitedNodes.add(origin);
+        final Set<Node> allReachableDestinations = graph.getOrDefault(origin, new ArrayList<>()).stream()
+                .map(Edge::getDestination)
+                .collect(Collectors.toSet());
         for (final Edge edge : graph.get(origin)) {
-            if (visitedEdges.contains(edge)) {
+            final Node destination = edge.getDestination();
+            final boolean hasVisitedAllNeighbors = visitedNodes.containsAll(allReachableDestinations);
+            if ((hasVisitedAllNeighbors && visitedEdges.contains(edge))
+                    || (!hasVisitedAllNeighbors && visitedNodes.contains(destination))) {
                 continue;
             }
             final Node neighbor = edge.getDestination();
@@ -57,5 +65,4 @@ public class BFSUtils {
         }
         visitedNodes.remove(origin);
     }
-
 }

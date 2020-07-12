@@ -16,7 +16,9 @@ import com.google.maps.model.DistanceMatrixElement;
 import com.google.maps.model.TravelMode;
 import com.ll.travelplanner.models.Edge;
 import com.ll.travelplanner.models.Node;
-import com.ll.travelplanner.utils.KruskalUtils;
+import com.ll.travelplanner.utils.DFSUtils;
+import com.ll.travelplanner.utils.CommonUtils;
+import javafx.util.Pair;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.SetUtils;
@@ -30,6 +32,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Controller
@@ -247,7 +251,22 @@ public class DirectionsController {
             }
         }
 
-        return null;
+        final List<List<Edge>> allPossiblePaths = new ArrayList<>();
+        for (Map.Entry<Node, List<Edge>> entry : graph.entrySet()) {
+            final Node origin = entry.getKey();
+            DFSUtils.dfs(origin, graph, new HashSet<>(), new HashSet<>(), new ArrayList<>(), allPossiblePaths);
+        }
+
+        final List<Pair<Long, List<Edge>>> allPossiblePathsWithWeight = allPossiblePaths.stream()
+                .map(paths -> new Pair<>(
+                        CommonUtils.getExtrema(paths, 0L, Edge::getDistance, Long::sum), paths))
+                .collect(Collectors.toList());
+        final Pair<Long, List<Edge>> optimalPath =  CommonUtils.getExtrema(allPossiblePathsWithWeight,
+                allPossiblePathsWithWeight.stream().findFirst().orElseThrow(RuntimeException::new),
+                Function.identity(),
+                BinaryOperator.minBy(Comparator.comparing(Pair::getKey)));
+
+        return ResponseEntity.ok(optimalPath);
     }
 
     private DistanceMatrixApiRequest generateMatrixRequest(@NonNull final String origin,
