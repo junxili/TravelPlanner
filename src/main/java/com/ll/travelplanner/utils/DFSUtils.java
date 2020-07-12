@@ -4,10 +4,7 @@ import com.ll.travelplanner.models.Edge;
 import com.ll.travelplanner.models.Node;
 import lombok.NonNull;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -34,7 +31,7 @@ public class DFSUtils {
 //    }
 
     public static void dfs(@NonNull final Node origin,
-                           @NonNull final Map<Node, List<Edge>> graph,
+                           @NonNull final Map<Node, Set<Edge>> graph,
                            @NonNull final Set<Node> visitedNodes,
                            @NonNull final Set<Edge> visitedEdges,
                            @NonNull final List<Edge> path,
@@ -46,10 +43,11 @@ public class DFSUtils {
             return;
         }
 
-        final Set<Node> allReachableDestinations = graph.getOrDefault(origin, new ArrayList<>()).stream()
+        final Set<Edge> neighbors = graph.getOrDefault(origin, new HashSet<>());
+        final Set<Node> allReachableDestinations = neighbors.stream()
                 .map(Edge::getDestination)
                 .collect(Collectors.toSet());
-        for (final Edge edge : graph.get(origin)) {
+        for (final Edge edge : neighbors) {
             final Node destination = edge.getDestination();
             final boolean hasVisitedAllNeighbors = visitedNodes.containsAll(allReachableDestinations);
             if ((hasVisitedAllNeighbors && visitedEdges.contains(edge))

@@ -10,10 +10,7 @@ import com.google.maps.DistanceMatrixApi;
 import com.google.maps.DistanceMatrixApiRequest;
 import com.google.maps.GeoApiContext;
 import com.google.maps.errors.ApiException;
-import com.google.maps.model.DirectionsResult;
-import com.google.maps.model.DistanceMatrix;
-import com.google.maps.model.DistanceMatrixElement;
-import com.google.maps.model.TravelMode;
+import com.google.maps.model.*;
 import com.ll.travelplanner.models.Edge;
 import com.ll.travelplanner.models.Node;
 import com.ll.travelplanner.utils.DFSUtils;
@@ -32,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -214,48 +212,23 @@ public class DirectionsController {
             throw new IllegalArgumentException();
         }
 
+        final Map<Node, Set<Edge>> graph = new HashMap<>();
         final Set<String> locations = Sets.newHashSet(input);
         final List<DistanceMatrixApiRequest> apiRequests = locations.stream()
                 .map(location -> generateMatrixRequest(location,
                         ImmutableList.copyOf(SetUtils.difference(locations, ImmutableSet.of(location)).toSet())))
                 .collect(Collectors.toList());
-        final List<DistanceMatrix> distanceMatrices = apiRequests.stream()
-                .map(this::getMatrixWrapper)
-                .collect(Collectors.toList());
-
-        final Map<Node, List<Edge>> graph = new HashMap<>();
-        for (final DistanceMatrix distanceMatrix : distanceMatrices) {
-            for (int i = 0; i < distanceMatrix.originAddresses.length; i++) {
-                for (int j = 0; j < distanceMatrix.destinationAddresses.length; j++) {
-                    final String origin = distanceMatrix.originAddresses[i];
-                    final String destination = distanceMatrix.destinationAddresses[j];
-                    final DistanceMatrixElement distanceMatrixElement = distanceMatrix.rows[i].elements[j];
-
-                    final Node originNode = Node.builder()
-                            .location(origin)
-                            .build();
-                    final Node destinationNode = Node.builder()
-                            .location(destination)
-                            .build();
-                    final Edge edge = Edge.builder()
-                            .origin(originNode)
-                            .destination(destinationNode)
-                            .distance(distanceMatrixElement.distance.inMeters)
-                            .duration(distanceMatrixElement.duration.inSeconds)
-                            .build();
-
-                    final List<Edge> edges = graph.getOrDefault(originNode, new ArrayList<>());
-                    edges.add(edge);
-                    graph.putIfAbsent(originNode, edges);
-                }
-            }
-        }
+        apiRequests.stream()
+                .map(request -> CompletableFuture.supplyAsync(() -> getMatrixWrapper(request)))
+                .map(CompletableFuture::join)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(distanceMatrix -> constructGraph(distanceMatrix, graph));
+        log.info("Graph: {}", graph);
 
         final List<List<Edge>> allPossiblePaths = new ArrayList<>();
-        for (Map.Entry<Node, List<Edge>> entry : graph.entrySet()) {
-            final Node origin = entry.getKey();
-            DFSUtils.dfs(origin, graph, new HashSet<>(), new HashSet<>(), new ArrayList<>(), allPossiblePaths);
-        }
+        graph.keySet().forEach(origin ->
+                DFSUtils.dfs(origin, graph, new HashSet<>(), new HashSet<>(), new ArrayList<>(), allPossiblePaths));
 
         final List<Pair<Long, List<Edge>>> allPossiblePathsWithWeight = allPossiblePaths.stream()
                 .map(paths -> new Pair<>(
@@ -269,21 +242,51 @@ public class DirectionsController {
         return ResponseEntity.ok(optimalPath);
     }
 
+    private void constructGraph(@NonNull final DistanceMatrix distanceMatrix,
+                                @NonNull final Map<Node, Set<Edge>> graph) {
+        for (int i = 0; i < distanceMatrix.originAddresses.length; i++) {
+            for (int j = 0; j < distanceMatrix.destinationAddresses.length; j++) {
+                final String origin = distanceMatrix.originAddresses[i];
+                final String destination = distanceMatrix.destinationAddresses[j];
+                final DistanceMatrixElement distanceMatrixElement = distanceMatrix.rows[i].elements[j];
+                if (!DistanceMatrixElementStatus.OK.equals(distanceMatrixElement.status)) {
+                    continue;
+                }
+
+                final Node originNode = Node.builder()
+                        .location(origin)
+                        .build();
+                final Node destinationNode = Node.builder()
+                        .location(destination)
+                        .build();
+                final Edge edge = Edge.builder()
+                        .origin(originNode)
+                        .destination(destinationNode)
+                        .distance(distanceMatrixElement.distance.inMeters)
+                        .duration(distanceMatrixElement.duration.inSeconds)
+                        .build();
+
+                final Set<Edge> edges = graph.getOrDefault(originNode, new HashSet<>());
+                edges.add(edge);
+                graph.putIfAbsent(originNode, edges);
+            }
+        }
+    }
+
     private DistanceMatrixApiRequest generateMatrixRequest(@NonNull final String origin,
                                                            @NonNull final List<String> destinations) {
         return DistanceMatrixApi
                 .getDistanceMatrix(geoContext, new String[]{origin}, destinations.toArray(new String[0]))
-                .mode(TravelMode.valueOf("DRIVING"));
+                .mode(TravelMode.TRANSIT);
     }
 
-    private DistanceMatrix getMatrixWrapper(@NonNull final DistanceMatrixApiRequest request) {
-        DistanceMatrix distanceMatrix = null;
+    private Optional<DistanceMatrix> getMatrixWrapper(@NonNull final DistanceMatrixApiRequest request) {
         try {
-            distanceMatrix = request.await();
+            return Optional.of(request.await());
         } catch (final ApiException | IOException | InterruptedException e) {
             logger.error("In getDirectionMatrixAllModes" + e.getMessage());
         }
 
-        return distanceMatrix;
+        return Optional.empty();
     }
 }
